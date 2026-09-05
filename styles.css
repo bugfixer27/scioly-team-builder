@@ -237,6 +237,11 @@ dialog.modal .m-foot { padding: 10px 16px; border-top: 1px solid var(--line-2); 
 .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--maroon); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty-state { padding: 40px; text-align: center; color: var(--ink-3); }
+.empty-state h2 { color: var(--ink); margin-bottom: 6px; }
+.loading-panel { display: grid; justify-items: center; gap: 8px; padding: 80px 20px; text-align: center; }
+.loading-panel h2 { font-size: 20px; }
+.loading-panel p { margin: 0; max-width: 460px; }
+.spinner.big { width: 28px; height: 28px; border-width: 3px; }
 
 /* ---- responsive ---- */
 @media (max-width: 1100px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } .weights { grid-template-columns: repeat(3, 1fr); } }

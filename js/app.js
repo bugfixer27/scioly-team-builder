@@ -160,10 +160,11 @@ async function offerDraft() {
 // ---------------------------------------------------------------- load / save / reload / export
 let loading = false;
 async function load({ silent } = {}) {
-  if (loading) return; loading = true;
+  if (loading) return; loading = true; store.loading = true; store.loadStartedAt = Date.now();
+  if (!store.loaded) store.emit('loading');
   $('btn-reload').disabled = true;
   const t0 = Date.now();
-  const tick = setInterval(() => { const sec = Math.round((Date.now() - t0) / 1000); if (sec >= 5) $('sync-status').innerHTML = `<span class="spinner"></span> Loading… ${sec}s${sec >= 15 ? ' (Google is waking up the script — can take up to a minute)' : ''}`; }, 1000);
+  const tick = setInterval(() => { const sec = Math.round((Date.now() - t0) / 1000); if (sec >= 3) $('sync-status').innerHTML = `<span class="spinner"></span> Loading… ${sec}s${sec >= 15 ? ' (Google is waking up the script — can take up to a minute)' : ''}`; }, 1000);
   if (!silent) $('sync-status').innerHTML = '<span class="spinner"></span> Loading…';
   try {
     const data = await apiGet('load');
@@ -174,7 +175,7 @@ async function load({ silent } = {}) {
     toast(err.message + (store.loaded ? '' : ' — click Reload to try again.'), 'error');
     if (!store.loaded) { store.emit('change'); }
     return false;
-  } finally { clearInterval(tick); loading = false; renderStatus(); }
+  } finally { clearInterval(tick); loading = false; store.loading = false; renderStatus(); if (!store.loaded) views[current].render(); }
 }
 async function reload() {
   if (store.dirty) {

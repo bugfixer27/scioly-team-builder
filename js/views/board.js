@@ -135,7 +135,13 @@ export function mount(root, ctx) {
 
   // ---- render ----
   function render() {
-    if (!store.loaded && !store.responses.length) { root.innerHTML = '<div class="empty-state">Nothing loaded yet. Check the API URL in <code>config.js</code>, then click <b>Reload</b>.</div>'; return; }
+    if (!store.loaded && !store.responses.length) {
+      root.innerHTML = store.loading
+        ? `<div class="loading-panel" role="status" aria-live="polite"><span class="spinner big"></span><h2>Loading members from the Google Sheet…</h2><p class="muted">Google can take up to a minute to wake the script the first time you open this page. Later loads take a few seconds.</p><p class="small muted loading-secs"></p></div>`
+        : '<div class="empty-state"><h2>Couldn’t load the roster</h2><p>The API didn’t answer. Click <b>Reload</b> to try again. If it keeps failing, check the API URL in <code>config.js</code> (Settings → Diagnostics shows what it’s using).</p></div>';
+      if (store.loading) { const el = root.querySelector('.loading-secs'); const t = setInterval(() => { if (!el.isConnected) return clearInterval(t); el.textContent = `${Math.round((Date.now() - store.loadStartedAt) / 1000)} s so far`; }, 1000); }
+      return;
+    }
     const events = store.server.events;
     const settings = store.state.settings;
     const stats = teamStats(store.state, store.responses, events, settings.weights);
