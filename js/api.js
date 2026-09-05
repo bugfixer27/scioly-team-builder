@@ -2,7 +2,8 @@
 // GET for reads; POST bodies are JSON *strings* sent as text/plain (never application/json,
 // which would trigger a CORS preflight that Apps Script cannot answer).
 
-const TIMEOUT_MS = 30000;
+// Apps Script cold starts have been measured at ~40 s for `load`, so be patient before giving up.
+const TIMEOUT_MS = 120000;
 
 function cfg() {
   const c = (typeof window !== 'undefined' && window.TEAMBUILDER_CONFIG) || {};
@@ -18,7 +19,7 @@ async function run(fetchPromise, action) {
   try {
     res = await fetchPromise;
   } catch (err) {
-    throw new ApiError(`Could not reach the Team Builder API (${action}): ${err && err.name === 'AbortError' ? 'timed out' : (err && err.message) || err}`);
+    throw new ApiError(`Could not reach the Team Builder API (${action}): ${err && err.name === 'AbortError' ? 'no answer after 2 minutes' : (err && err.message) || err}`);
   }
   let json;
   try {

@@ -161,17 +161,20 @@ async function offerDraft() {
 let loading = false;
 async function load({ silent } = {}) {
   if (loading) return; loading = true;
-  $('btn-reload').disabled = true; if (!silent) $('sync-status').innerHTML = '<span class="spinner"></span> Loading…';
+  $('btn-reload').disabled = true;
+  const t0 = Date.now();
+  const tick = setInterval(() => { const sec = Math.round((Date.now() - t0) / 1000); if (sec >= 5) $('sync-status').innerHTML = `<span class="spinner"></span> Loading… ${sec}s${sec >= 15 ? ' (Google is waking up the script — can take up to a minute)' : ''}`; }, 1000);
+  if (!silent) $('sync-status').innerHTML = '<span class="spinner"></span> Loading…';
   try {
     const data = await apiGet('load');
     store.setLoaded(data);
     if (!silent) toast(`Loaded v${data.version} · ${data.responses.length} respondents`);
     return true;
   } catch (err) {
-    toast(err.message, 'error');
+    toast(err.message + (store.loaded ? '' : ' — click Reload to try again.'), 'error');
     if (!store.loaded) { store.emit('change'); }
     return false;
-  } finally { loading = false; renderStatus(); }
+  } finally { clearInterval(tick); loading = false; renderStatus(); }
 }
 async function reload() {
   if (store.dirty) {
