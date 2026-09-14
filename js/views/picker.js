@@ -3,6 +3,7 @@
 import { esc, placePopover } from '../ui.js';
 import { band, TEAMS } from '../score.js';
 import { timesChip, matchWith, meetBadge } from './meet.js';
+import { conflictsFor, timeFor } from '../schedule.js';
 
 export function createPicker(ctx) {
   const { store, actions } = ctx;
@@ -44,15 +45,18 @@ export function createPicker(ctx) {
         const held = TEAMS.reduce((n, t) => n + Object.values(store.state.assignments[t]).filter(l => l.includes(email)).length, 0);
         const tag = !r ? 'none' : r.hardNos.includes(event) ? 'hardno' : r.interests.includes(event) ? 'interested' : 'neutral';
         const fit = matchWith(r, occupants);
-        return { email, r, name: r ? r.name : email, score: r ? ctx.scoreOf(r) : 0, held, tag, fit };
+        const clash = conflictsFor(store.state, team, event, email);
+        return { email, r, name: r ? r.name : email, score: r ? ctx.scoreOf(r) : 0, held, tag, fit, clash };
       }).filter(m => !q || m.name.toLowerCase().includes(q.toLowerCase()) || m.email.includes(q.toLowerCase()))
-        .sort((a, b) => (b.tag === 'interested') - (a.tag === 'interested') || ((b.fit && b.fit.status === 'ok') - (a.fit && a.fit.status === 'ok')) || a.held - b.held || b.score - a.score);
+        .sort((a, b) => (a.clash.length > 0) - (b.clash.length > 0) || (b.tag === 'interested') - (a.tag === 'interested') || ((b.fit && b.fit.status === 'ok') - (a.fit && a.fit.status === 'ok')) || a.held - b.held || b.score - a.score);
       const current = occupants.filter(Boolean);
+      const teamNum = (store.state.settings.teamNumbers || {})[team];
+      const when = timeFor(event, teamNum);
       const titleEl = el.querySelector('.picker-title');
-      titleEl.innerHTML = `${esc(event)} · Team ${team}` + (current.length ? ` · with ${current.map(r => `${esc(r.name)} ${timesChip(r, { small: true })}`).join(', ')}` : '');
+      titleEl.innerHTML = `${esc(event)} · Team ${team}${when ? ` <span class="muted small">· ${esc(when)}</span>` : ''}` + (current.length ? ` · with ${current.map(r => `${esc(r.name)} ${timesChip(r, { small: true })}`).join(', ')}` : '');
       const unplaced = store.responses.filter(r => !store.state.members[r.email] || !store.state.members[r.email].team).length;
       el.querySelector('ul').innerHTML = rows.length
-        ? rows.map(m => `<li role="option"><button type="button" data-assign="${esc(m.email)}"><span><b>${esc(m.name)}</b> ${timesChip(m.r, { small: true })}${m.fit ? (m.fit.status === 'ok' ? `<span class="meet ok">✓ ${m.fit.shared.map(k => k === 'mc' ? 'MC' : k).join('+')}</span>` : '<span class="meet bad">⚠ no shared time</span>') : ''}</span><span class="pill band-${band(m.score)}">${m.score}</span><span class="chip" title="Events held">${m.held} ev</span>${m.tag === 'interested' ? '<span class="chip green">interested</span>' : m.tag === 'hardno' ? '<span class="chip red">HARD NO</span>' : '<span class="chip">neutral</span>'}</button></li>`).join('')
+        ? rows.map(m => `<li role="option" class="${m.clash.length ? 'clash' : ''}"><button type="button" data-assign="${esc(m.email)}" ${m.clash.length ? `title="${esc('Overlaps ' + m.clash.join(' and ') + (when ? ' (' + when + ')' : ' — same time block') + '. Cannot be assigned.')}"` : ''}><span>${m.clash.length ? `<span class="meet clash" aria-label="Schedule overlap">⚠ overlaps ${esc(m.clash.join(' & '))}</span> ` : ''}<b>${esc(m.name)}</b> ${timesChip(m.r, { small: true })}${m.fit ? (m.fit.status === 'ok' ? `<span class="meet ok">✓ ${m.fit.shared.map(k => k === 'mc' ? 'MC' : k).join('+')}</span>` : '<span class="meet bad">⚠ no shared time</span>') : ''}</span><span class="pill band-${band(m.score)}">${m.score}</span><span class="chip" title="Events held">${m.held} ev</span>${m.tag === 'interested' ? '<span class="chip green">interested</span>' : m.tag === 'hardno' ? '<span class="chip red">HARD NO</span>' : '<span class="chip">neutral</span>'}</button></li>`).join('')
         : `<li class="muted small" style="padding:8px">${members.length ? 'No one matches.' : `No members on Team ${team} yet.`}</li>`;
       const open = ev ? ev.slots - already.length : 0;
       el.querySelector('footer').textContent = `${open} open slot${open === 1 ? '' : 's'} · ${unplaced} unplaced member${unplaced === 1 ? '' : 's'} — place them on the Board first`;

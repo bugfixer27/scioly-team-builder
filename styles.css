@@ -164,8 +164,15 @@ main { padding: 12px; min-height: calc(100vh - var(--topbar-h)); }
 .meet { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 9px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .meet.ok { background: var(--ok-bg); color: var(--ok); }
 .meet.bad { background: var(--warn-bg); color: var(--warn); }
+.meet.clash { background: var(--bad-bg); color: var(--bad); }
+.clash-flag { color: var(--bad); font-weight: 700; margin-right: 2px; }
+.slot.filled.clash { outline: 1.5px solid var(--bad); outline-offset: -1px; }
+.picker li.clash button { opacity: 0.75; }
+.checklist label.clash { color: var(--bad); }
+.slots .when { font-size: 10.5px; margin-left: 4px; white-space: nowrap; }
 .ev-row.drag-over.fit-ok { border-color: var(--ok); background: var(--ok-bg); }
 .ev-row.drag-over.fit-bad { border-color: var(--warn); background: var(--warn-bg); }
+.ev-row.drag-over.fit-clash { border-color: var(--bad); background: var(--bad-bg); }
 .legend { display: inline-flex; align-items: center; gap: 4px; }
 .checklist label .avail { display: inline-flex; gap: 4px; align-items: center; }
 

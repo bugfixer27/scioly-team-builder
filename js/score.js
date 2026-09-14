@@ -1,3 +1,4 @@
+import { allConflicts } from './schedule.js';
 // Pure scoring, banding, event abbreviations and rules check. Importable in Node (no DOM).
 
 export const FACTORS = [
@@ -149,6 +150,9 @@ export function teamStats(state, responses, events, weights) {
 
 // Returns an array of {code, team, event?, email?, message}. Empty array = clean.
 export function rulesCheck(state, responses, events, settings) {
+  return rulesCheckBase(state, responses, events, settings).concat(scheduleProblems(state, responses));
+}
+function rulesCheckBase(state, responses, events, settings) {
   const s = settings || {};
   const teamCap = Number(s.teamCap ?? 15), seniorCap = Number(s.seniorCap ?? 7);
   const byEmail = {};
@@ -175,6 +179,12 @@ export function rulesCheck(state, responses, events, settings) {
     });
   });
   return problems;
+}
+
+// Schedule overlaps already in the state (same time block on the same team).
+function scheduleProblems(state, responses) {
+  const byEmail = {}; (responses || []).forEach(r => { byEmail[r.email] = r; });
+  return allConflicts(state).map(c => ({ code: 'overlap', team: c.team, email: c.email, events: c.events, message: `${(byEmail[c.email] && byEmail[c.email].name) || c.email} holds ${c.events[0]} and ${c.events[1]} on Team ${c.team}, which run at the same time` }));
 }
 
 // Events (by team) held by one member: [{team, event}]

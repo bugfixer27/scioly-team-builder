@@ -3,6 +3,7 @@ import { esc, ls, toast } from '../ui.js';
 import { abbrev, band, teamStats, TEAMS } from '../score.js';
 import { createPicker } from './picker.js';
 import { timesChip, meetBadge, matchWith } from './meet.js';
+import { conflictsFor } from '../schedule.js';
 
 const TYPE_LABEL = { study: 'Study', build: 'Build', lab: 'Lab', trial: 'Trial' };
 
@@ -18,7 +19,7 @@ export function mount(root, ctx) {
   root.addEventListener('click', onClick);
   root.addEventListener('keydown', onKey);
   root.addEventListener('dragstart', onDragStart);
-  root.addEventListener('dragend', () => { root.querySelectorAll('.dragging').forEach(c => c.classList.remove('dragging')); root.querySelectorAll('.drag-over, .fit-ok, .fit-bad').forEach(c => { c.classList.remove('drag-over', 'fit-ok', 'fit-bad'); delete c.dataset.fitDone; }); dragging = null; });
+  root.addEventListener('dragend', () => { root.querySelectorAll('.dragging').forEach(c => c.classList.remove('dragging')); root.querySelectorAll('.drag-over, .fit-ok, .fit-bad, .fit-clash').forEach(c => { c.classList.remove('drag-over', 'fit-ok', 'fit-bad', 'fit-clash'); delete c.dataset.fitDone; }); dragging = null; });
   root.addEventListener('dragover', e => {
     const col = e.target.closest('.col'); if (!col) return;
     e.preventDefault(); e.dataTransfer.dropEffect = 'move';
@@ -32,15 +33,16 @@ export function mount(root, ctx) {
         if (emails.length === 1) {
           const byEmail = store.byEmail();
           const occ = (store.state.assignments[row.dataset.team][row.dataset.event] || []).map(e => byEmail[e]);
-          const m = matchWith(byEmail[emails[0]], occ);
-          if (m) row.classList.add(m.status === 'ok' ? 'fit-ok' : 'fit-bad');
+          const clash = conflictsFor(store.state, row.dataset.team, row.dataset.event, emails[0]);
+          if (clash.length) row.classList.add('fit-clash');
+          else { const m = matchWith(byEmail[emails[0]], occ); if (m) row.classList.add(m.status === 'ok' ? 'fit-ok' : 'fit-bad'); }
         }
       }
     } else col.classList.add('drag-over');
   });
   root.addEventListener('dragleave', e => {
     const col = e.target.closest('.col'); if (col && !col.contains(e.relatedTarget)) col.classList.remove('drag-over');
-    const row = e.target.closest('.ev-row'); if (row && !row.contains(e.relatedTarget)) { row.classList.remove('drag-over', 'fit-ok', 'fit-bad'); delete row.dataset.fitDone; }
+    const row = e.target.closest('.ev-row'); if (row && !row.contains(e.relatedTarget)) { row.classList.remove('drag-over', 'fit-ok', 'fit-bad', 'fit-clash'); delete row.dataset.fitDone; }
   });
   root.addEventListener('drop', onDrop);
   root.addEventListener('input', onInput);
@@ -213,7 +215,9 @@ export function mount(root, ctx) {
         const r = byEmail[email];
         const hard = r && r.hardNos.includes(ev.name), notInt = r && !hard && !r.interests.includes(ev.name);
         const mark = hard ? '<span class="hardno-flag" title="Listed as a hard no">!</span>' : notInt ? '<span class="dot amber" title="Not in their interests"></span>' : '';
-        return `<span class="slot filled ${hard ? 'hardno' : notInt ? 'notint' : ''}">${mark}<button class="nm" type="button" data-open="${esc(email)}" title="${esc(email)}${hard ? ' — HARD NO' : notInt ? ' — not an interest' : ''}">${esc(r ? shortName(r.name) : email)}</button>${timesChip(r, { small: true })}<button class="x" type="button" data-unassign='${esc(JSON.stringify([team, ev.name, email]))}' aria-label="Remove ${esc(r ? r.name : email)} from ${esc(ev.name)}">×</button></span>`;
+        const clash = conflictsFor(store.state, team, ev.name, email);
+        const cmark = clash.length ? `<span class="clash-flag" title="${esc('Schedule overlap: also holds ' + clash.join(' and ') + ' in the same time block')}">⚠</span>` : '';
+        return `<span class="slot filled ${hard ? 'hardno' : notInt ? 'notint' : ''} ${clash.length ? 'clash' : ''}">${cmark}${mark}<button class="nm" type="button" data-open="${esc(email)}" title="${esc(email)}${clash.length ? ' — overlaps ' + esc(clash.join(' & ')) : ''}${hard ? ' — HARD NO' : notInt ? ' — not an interest' : ''}">${esc(r ? shortName(r.name) : email)}</button>${timesChip(r, { small: true })}<button class="x" type="button" data-unassign='${esc(JSON.stringify([team, ev.name, email]))}' aria-label="Remove ${esc(r ? r.name : email)} from ${esc(ev.name)}">×</button></span>`;
       });
       const badge = meetBadge(list.map(e => byEmail[e]));
       for (let i = list.length; i < ev.slots; i++) chips.push(`<span class="slot empty"><button type="button" data-pick='${esc(JSON.stringify([team, ev.name]))}' aria-label="Assign someone to ${esc(ev.name)} on Team ${team}" title="Pick from Team ${team}">+</button></span>`);

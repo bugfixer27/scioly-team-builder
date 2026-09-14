@@ -2,6 +2,7 @@
 import { apiGet, apiPost } from './api.js';
 import { createStore, placeMember, assignmentsLostByMove, assignSlot, unassignSlot, setNote, setSettings, removeMember, summarizeDiff, diffStates, buildRoster, buildEventRows, rosterSummaryText, toCsv, normalizeState, clone } from './store.js';
 import { computeScore, rulesCheck } from './score.js';
+import { conflictsFor, timeFor } from './schedule.js';
 import { esc, toast, modal, confirmDialog, promptDialog, download, copyText, ls, ago, fmtClock } from './ui.js';
 import * as Board from './views/board.js';
 import * as Events from './views/events.js';
@@ -49,6 +50,14 @@ Object.assign(ctx.actions, {
   },
   async assign(team, event, email) {
     const r = store.byEmail()[email];
+    // Schedule rule: nobody can hold two events that run in the same time block (build events self-schedule).
+    const clash = conflictsFor(store.state, team, event, email);
+    if (clash.length) {
+      const num = (store.state.settings.teamNumbers || {})[team];
+      const when = timeFor(event, num);
+      await modal({ title: '⚠ Overlapping events', body: `<p><b>${esc(byEmailName(email))}</b> can’t take <b>${esc(event)}</b> on Team ${team}: it runs at the same time as ${clash.map(c => `<b>${esc(c)}</b>`).join(' and ')}${when ? ` (${esc(when)})` : ''}, which they already hold.</p><p class="small muted">Remove them from ${esc(clash.join(' / '))} first, or pick someone else. Build events are self-scheduled and never overlap.</p>`, buttons: [{ label: 'OK', value: true, kind: 'primary' }] });
+      return false;
+    }
     if (r && r.hardNos.includes(event)) {
       const ok = await confirmDialog('Hard no', `<p><b>${esc(r.name)}</b> listed <b>${esc(event)}</b> as a hard no. Assign anyway?</p>`, 'Assign anyway', 'danger');
       if (!ok) return false;

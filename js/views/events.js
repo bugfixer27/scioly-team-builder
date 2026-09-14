@@ -3,6 +3,7 @@ import { esc } from '../ui.js';
 import { teamStats, TEAMS } from '../score.js';
 import { createPicker } from './picker.js';
 import { timesChip, meetBadge } from './meet.js';
+import { conflictsFor, timeFor } from '../schedule.js';
 
 const TYPE_LABEL = { study: 'Study', build: 'Build', lab: 'Lab', trial: 'Trial' };
 
@@ -55,12 +56,14 @@ export function mount(root, ctx) {
     const chips = list.map(email => {
       const r = byEmail[email];
       const hard = r && r.hardNos.includes(ev.name), notInt = r && !hard && !r.interests.includes(ev.name);
-      const cls = 'slot filled' + (hard ? ' hardno' : notInt ? ' notint' : '');
-      const mark = hard ? '<span class="hardno-flag" title="Listed as a hard no">!</span>' : notInt ? '<span class="dot amber" title="Not in their interests"></span>' : '';
+      const clash = conflictsFor(store.state, team, ev.name, email);
+      const cls = 'slot filled' + (hard ? ' hardno' : notInt ? ' notint' : '') + (clash.length ? ' clash' : '');
+      const mark = (clash.length ? `<span class="clash-flag" title="${esc('Schedule overlap: also holds ' + clash.join(' and ') + ' in the same time block')}">⚠</span>` : '') + (hard ? '<span class="hardno-flag" title="Listed as a hard no">!</span>' : notInt ? '<span class="dot amber" title="Not in their interests"></span>' : '');
       return `<span class="${cls}">${mark}<button class="nm" type="button" data-open="${esc(email)}" title="${esc(email)}${hard ? ' — HARD NO' : notInt ? ' — not an interest' : ''}">${esc(r ? r.name : email)}</button>${timesChip(r, { small: true })}<button class="x" type="button" data-unassign='${esc(JSON.stringify([team, ev.name, email]))}' aria-label="Remove ${esc(r ? r.name : email)} from ${esc(ev.name)}">×</button></span>`;
     });
     for (let i = list.length; i < ev.slots; i++) chips.push(`<span class="slot empty"><button type="button" data-pick='${esc(JSON.stringify([team, ev.name]))}' aria-label="Assign someone to ${esc(ev.name)} on Team ${team}" title="Assign">+</button></span>`);
-    return `<div class="slots">${chips.join('')}${meetBadge(list.map(e => byEmail[e]))}</div>`;
+    const when = timeFor(ev.name, (store.state.settings.teamNumbers || {})[team]);
+    return `<div class="slots">${chips.join('')}${meetBadge(list.map(e => byEmail[e]))}${when ? `<span class="when muted" title="Time block for this team's tournament number">${esc(when)}</span>` : ''}</div>`;
   }
   function renderLoad(team, byEmail, settings) {
     const members = Object.keys(store.state.members).filter(e => store.state.members[e].team === team);

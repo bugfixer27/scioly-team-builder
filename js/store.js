@@ -4,6 +4,7 @@ import { TEAMS, eventsHeldBy } from './score.js';
 
 export const DEFAULT_SETTINGS = {
   teamCap: 15, seniorCap: 7, eventWarnAt: 4,
+  teamNumbers: { A: null, B: null, C: null },   // tournament team numbers (optional; used only to show clock times)
   weights: { outsideWork: 3, afterSchool: 2, weekends: 2, accountability: 3, conflicts: 2, unlikedEvent: 1, selfTeam: 3, experience: 2, medals: 1, honors: 1, miniCourse: 1, makerSpace: 1 }
 };
 
@@ -19,6 +20,7 @@ export function normalizeState(input) {
   if (!input || typeof input !== 'object') return s;
   s.settings = { ...s.settings, ...(input.settings || {}) };
   s.settings.weights = { ...DEFAULT_SETTINGS.weights, ...((input.settings && input.settings.weights) || {}) };
+  s.settings.teamNumbers = { ...DEFAULT_SETTINGS.teamNumbers, ...((input.settings && input.settings.teamNumbers) || {}) };
   Object.keys(input.members || {}).forEach(email => {
     const m = input.members[email] || {};
     s.members[String(email).toLowerCase()] = { team: TEAMS.includes(m.team) ? m.team : null, note: String(m.note || ''), flags: Array.isArray(m.flags) ? m.flags.slice() : [] };
@@ -88,9 +90,10 @@ export function setNote(state, email, note) {
 
 export function setSettings(state, patch) {
   const next = clone(state);
-  const { weights, ...rest } = patch || {};
+  const { weights, teamNumbers, ...rest } = patch || {};
   Object.assign(next.settings, rest);
   if (weights) next.settings.weights = { ...next.settings.weights, ...weights };
+  if (teamNumbers) next.settings.teamNumbers = { ...next.settings.teamNumbers, ...teamNumbers };
   return next;
 }
 

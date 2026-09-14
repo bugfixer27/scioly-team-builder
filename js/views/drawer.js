@@ -2,6 +2,7 @@
 import { esc, fmtTime } from '../ui.js';
 import { computeScore, band, bandLabel, TEAMS } from '../score.js';
 import { timesChip, matchWith } from './meet.js';
+import { conflictsFor } from '../schedule.js';
 
 // Form order, short label, and the raw question text (shown on hover).
 const FIELDS = [
@@ -68,10 +69,11 @@ export function mount(root, ctx) {
     return '<option value="">— pick an event —</option>' + store.server.events.map(ev => {
       const list = store.state.assignments[team][ev.name] || [];
       const on = list.includes(email), full = list.length >= ev.slots;
-      const fit = on || full ? null : matchWith(r, list.map(e => store.byEmail()[e]));
+      const clash = on || full ? [] : conflictsFor(store.state, team, ev.name, email);
+      const fit = on || full || clash.length ? null : matchWith(r, list.map(e => store.byEmail()[e]));
       const meet = fit ? (fit.status === 'ok' ? ` · meets ${fit.shared.map(k => k === 'mc' ? 'MC' : k).join('+')}` : ' · ⚠ no shared time') : '';
-      const tag = (on ? ' · already' : full ? ' · full' : r.hardNos.includes(ev.name) ? ' · HARD NO' : r.interests.includes(ev.name) ? ' · ★ interested' : '') + meet;
-      return `<option value="${esc(ev.name)}" ${on || full ? 'disabled' : ''}>${esc(ev.name)} (${list.length}/${ev.slots})${tag}</option>`;
+      const tag = (on ? ' · already' : full ? ' · full' : clash.length ? ` · ⚠ overlaps ${clash.join(' & ')}` : r.hardNos.includes(ev.name) ? ' · HARD NO' : r.interests.includes(ev.name) ? ' · ★ interested' : '') + meet;
+      return `<option value="${esc(ev.name)}" ${on || full || clash.length ? 'disabled' : ''}>${esc(ev.name)} (${list.length}/${ev.slots})${tag}</option>`;
     }).join('');
   }
   function rawOf(r, key) {
@@ -113,9 +115,10 @@ export function mount(root, ctx) {
         const full = team && !on && list.length >= ev.slots;
         const hard = r.hardNos.includes(ev.name), int = r.interests.includes(ev.name);
         const others = list.filter(e => e !== email).map(e => store.byEmail()[e]);
-        const fit = team ? matchWith(r, others) : null;
-        const meet = fit ? (fit.status === 'ok' ? `<span class="meet ok" title="Shares a time with the others on this event">✓ ${fit.shared.map(k => k === 'mc' ? 'MC' : k).join('+')}</span>` : '<span class="meet bad" title="No time in common with the others on this event">⚠</span>') : '';
-        return `<label class="${hard ? 'hardno' : ''} ${full ? 'full' : ''}" title="${hard ? 'HARD NO — will ask to confirm' : int ? 'Interested' : ''}"><input type="checkbox" data-ev='${esc(JSON.stringify([team, ev.name]))}' ${on ? 'checked' : ''} ${!team || full ? 'disabled' : ''}>${hard ? '<span class="hardno-flag">!</span> ' : int ? '<span class="dot green" title="interested"></span> ' : ''}${esc(ev.name)}<span class="avail">${meet} ${team ? `${list.length}/${ev.slots}` : ''}</span></label>`;
+        const clash = team ? conflictsFor(store.state, team, ev.name, email) : [];
+        const fit = team && !clash.length ? matchWith(r, others) : null;
+        const meet = clash.length ? `<span class="meet clash" title="${esc('Same time block as ' + clash.join(' and ') + ' — cannot hold both')}">⚠ overlaps ${esc(clash.join(' & '))}</span>` : fit ? (fit.status === 'ok' ? `<span class="meet ok" title="Shares a time with the others on this event">✓ ${fit.shared.map(k => k === 'mc' ? 'MC' : k).join('+')}</span>` : '<span class="meet bad" title="No time in common with the others on this event">⚠</span>') : '';
+        return `<label class="${hard ? 'hardno' : ''} ${full ? 'full' : ''} ${clash.length ? 'clash' : ''}" title="${clash.length ? 'Overlaps ' + esc(clash.join(' and ')) : hard ? 'HARD NO — will ask to confirm' : int ? 'Interested' : ''}"><input type="checkbox" data-ev='${esc(JSON.stringify([team, ev.name]))}' ${on ? 'checked' : ''} ${!team || full || (clash.length && !on) ? 'disabled' : ''}>${hard ? '<span class="hardno-flag">!</span> ' : int ? '<span class="dot green" title="interested"></span> ' : ''}${esc(ev.name)}<span class="avail">${meet} ${team ? `${list.length}/${ev.slots}` : ''}</span></label>`;
       }).join('');
       body = `
         <section><h3>Their answers</h3><dl class="answers">${answers}</dl>${extra ? `<h3 style="margin-top:10px">Other questions</h3><dl class="answers">${extra}</dl>` : ''}</section>

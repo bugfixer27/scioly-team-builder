@@ -2,6 +2,7 @@
 import { esc, fmtTime } from '../ui.js';
 import { FACTORS, computeScore, band } from '../score.js';
 import { maskedApiUrl } from '../api.js';
+import { allConflicts, rangeLabel, BLOCKS } from '../schedule.js';
 
 export function mount(root, ctx) {
   const { store, actions } = ctx;
@@ -11,6 +12,7 @@ export function mount(root, ctx) {
     const t = e.target;
     if (t.dataset.w) { const v = clamp(t.value, 0, 5); actions.setSettings({ weights: { [t.dataset.w]: v } }); }
     else if (t.dataset.s) { const v = Math.max(0, Math.round(Number(t.value) || 0)); actions.setSettings({ [t.dataset.s]: v }); }
+    else if (t.dataset.tn) { const v = Math.round(Number(t.value)); actions.setSettings({ teamNumbers: { [t.dataset.tn]: v >= 1 ? v : null } }); refreshLive(); }
   });
   root.addEventListener('change', e => {
     const t = e.target;
@@ -45,6 +47,10 @@ export function mount(root, ctx) {
             <label class="field">Team cap (Division C: 15)<input class="input" type="number" min="1" value="${s.teamCap}" data-s="teamCap"></label>
             <label class="field">Senior cap (Division C: 7)<input class="input" type="number" min="0" value="${s.seniorCap}" data-s="seniorCap"></label>
             <label class="field">Warn at n events<input class="input" type="number" min="1" value="${s.eventWarnAt}" data-s="eventWarnAt"></label></div></div>
+        <div class="card-panel"><h3>Competition schedule</h3>
+          <p class="small muted" style="margin:0 0 8px">Nobody can hold two events that run in the same time block; the app blocks it. Build events are self-scheduled and never overlap. Enter each team's tournament number to see clock times instead of “same time block”.</p>
+          <div class="weights" style="grid-template-columns:repeat(3,1fr)">${['A', 'B', 'C'].map(t => `<label class="field">Team ${t} tournament #<input class="input" type="number" min="1" max="60" placeholder="e.g. 12" value="${(s.teamNumbers || {})[t] || ''}" data-tn="${t}"></label>`).join('')}</div>
+          <p class="small" id="live-sched" style="margin:8px 0 0"></p></div>
         <div class="card-panel"><h3>This computer</h3>
           <div class="weights" style="grid-template-columns:1fr 1fr">
             <label class="field">Your display name (written to the change log)<input class="input" name="author" maxlength="60" value="${esc(ctx.getAuthor())}"></label>
@@ -76,6 +82,14 @@ export function mount(root, ctx) {
     // keep non-focused inputs in sync (e.g. after Reload)
     root.querySelectorAll('input[data-w]').forEach(i => { if (i !== document.activeElement) i.value = store.state.settings.weights[i.dataset.w] ?? 0; });
     root.querySelectorAll('input[data-s]').forEach(i => { if (i !== document.activeElement) i.value = store.state.settings[i.dataset.s]; });
+    const sched = root.querySelector('#live-sched');
+    if (sched) {
+      const byEmail = store.byEmail();
+      const bad = allConflicts(store.state);
+      const nums = store.state.settings.teamNumbers || {};
+      const ranges = ['A', 'B', 'C'].filter(t => nums[t]).map(t => `Team ${t} → block “${rangeLabel(nums[t])}”`).join(' · ');
+      sched.innerHTML = (ranges ? `${esc(ranges)}<br>` : '') + (bad.length ? `<span class="chip red">⚠ ${bad.length} overlap${bad.length === 1 ? '' : 's'} in the current roster</span><ul class="diff-list">${bad.map(c => `<li><b>${esc((byEmail[c.email] || {}).name || c.email)}</b> (Team ${c.team}): ${esc(c.events[0])} + ${esc(c.events[1])}</li>`).join('')}</ul>` : '<span class="chip green">no schedule overlaps ✓</span>');
+    }
   }
   return { render, invalidate() { built = false; } };
 }
