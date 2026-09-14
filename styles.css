@@ -133,6 +133,9 @@ main { padding: 12px; min-height: calc(100vh - var(--topbar-h)); }
 .card .ints { display: flex; gap: 3px; flex-wrap: wrap; }
 .card .ints span { font-size: 10px; letter-spacing: .02em; padding: 1px 4px; border-radius: 3px; background: var(--bg-2); color: var(--ink-2); font-family: ui-monospace, Menlo, monospace; }
 .card .ints span.match { background: var(--gold-100); color: var(--warn); font-weight: 700; }
+.card .held { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 2px; }
+.card .held span { font-size: 10px; letter-spacing: .02em; padding: 1px 4px; border-radius: 3px; background: var(--gold-100); color: var(--ink); font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
+.card .held span.clash { background: var(--bad-bg); color: var(--bad); outline: 1px solid var(--bad); }
 .grade { font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 3px; background: var(--bg-2); color: var(--ink-2); }
 .grade.senior { background: var(--maroon-100); color: var(--maroon); }
 .hardno-flag { color: var(--bad); font-weight: 800; cursor: help; }

@@ -3,7 +3,7 @@ import { esc, ls, toast } from '../ui.js';
 import { abbrev, band, teamStats, TEAMS } from '../score.js';
 import { createPicker } from './picker.js';
 import { timesChip, meetBadge, matchWith } from './meet.js';
-import { conflictsFor } from '../schedule.js';
+import { conflictsFor, overlaps, timeFor } from '../schedule.js';
 
 const TYPE_LABEL = { study: 'Study', build: 'Build', lab: 'Lab', trial: 'Trial' };
 
@@ -243,10 +243,17 @@ export function mount(root, ctx) {
     const ints = r.interests.slice(0, 5).map(ev => `<span class="${ev === filters.interestEvent ? 'match' : ''}" title="${esc(ev.replace(/^\?/, ''))}">${esc(abbrev(ev))}</span>`).join('');
     const hn = r.hardNos.length ? `<span class="hardno-flag" title="Hard no: ${esc(r.hardNos.join(', '))}" aria-label="Has hard-no events: ${esc(r.hardNos.join(', '))}">!</span>` : '';
     const b = band(m.score);
-    return `<div class="${cls.join(' ')}" draggable="true" tabindex="0" data-email="${esc(m.email)}" role="button" aria-label="${esc(r.name)}, grade ${r.grade || '?'}, score ${m.score}, ${m.team ? 'Team ' + m.team : 'unplaced'}. Press A, B, C or U to move, Enter for details.">
+    // Events they hold on their own team; any that run in the same time block get a red ⚠ (schedule rule).
+    const mine = m.held.filter(h => h.team === m.team).map(h => h.event).sort();
+    const clashOf = ev => mine.filter(o => overlaps(o, ev));
+    const nClash = mine.filter(ev => clashOf(ev).length).length;
+    const teamNum = m.team ? (settings.teamNumbers || {})[m.team] : null;
+    const heldRow = mine.length ? `<div class="held" aria-label="Events held">${mine.map(ev => { const c = clashOf(ev); const t = timeFor(ev, teamNum); return `<span class="${c.length ? 'clash' : ''}" title="${esc(ev + (t ? ' · ' + t : '') + (c.length ? '\n⚠ overlaps ' + c.join(' and ') + ' — same time block' : ''))}">${c.length ? '⚠' : ''}${esc(abbrev(ev))}</span>`; }).join('')}</div>` : '';
+    const clashChip = nClash ? `<span class="chip red" title="${esc('Schedule overlap: ' + mine.filter(ev => clashOf(ev).length).join(', ') + ' run at the same time')}">⚠ overlap</span>` : '';
+    return `<div class="${cls.join(' ')}" draggable="true" tabindex="0" data-email="${esc(m.email)}" role="button" aria-label="${esc(r.name)}, grade ${r.grade || '?'}, score ${m.score}, ${m.team ? 'Team ' + m.team : 'unplaced'}${nClash ? ', has overlapping events' : ''}. Press A, B, C or U to move, Enter for details.">
       <div class="row1"><span class="name" title="${esc(r.email)}">${esc(r.name)}</span>${hn}<span class="grade ${r.grade === 12 ? 'senior' : ''}" title="Grade ${r.grade || '?'}${r.grade === 12 ? ' (senior)' : ''}">${r.grade || '?'}${r.grade === 12 ? '•' : ''}</span><span class="pill band-${b}" title="${b}-range">${m.score}</span></div>
-      <div class="row2">${r.selfTeam ? `<span class="chip outline" title="Self-placed team">says ${esc(r.selfTeam)}</span>` : ''}${timesChip(r)}<span class="${heldCls}" title="Events held${held >= settings.eventWarnAt ? ' (at or above warning threshold)' : ''}">${held >= settings.eventWarnAt ? '⚠ ' : ''}${held} ev</span></div>
-      <div class="ints">${ints}</div></div>`;
+      <div class="row2">${r.selfTeam ? `<span class="chip outline" title="Self-placed team">says ${esc(r.selfTeam)}</span>` : ''}${timesChip(r)}<span class="${heldCls}" title="Events held${held >= settings.eventWarnAt ? ' (at or above warning threshold)' : ''}">${held >= settings.eventWarnAt ? '⚠ ' : ''}${held} ev</span>${clashChip}</div>
+      ${heldRow}<div class="ints">${ints}</div></div>`;
   }
   return { render };
 }
