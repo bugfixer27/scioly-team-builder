@@ -91,6 +91,27 @@ export function abbrev(eventName) {
   return String(eventName).replace(/^\?/, '').slice(0, 4).toUpperCase();
 }
 
+// ---- meeting times -----------------------------------------------------
+// A person can meet during the Mini Course (if enrolled) and/or activity periods A / B.
+// Parsed loosely from the form text: "A", "B", "Both A and B", "A, B", "None"…
+export function availabilityOf(r) {
+  const out = { mc: !!(r && r.miniCourse === true), A: false, B: false };
+  const t = String((r && r.activityPeriods) || '');
+  if (/both/i.test(t)) { out.A = out.B = true; }
+  else { if (/\bA\b/.test(t)) out.A = true; if (/\bB\b/.test(t)) out.B = true; }
+  return out;
+}
+export const TIME_LABELS = { mc: 'Mini Course', A: 'Period A', B: 'Period B' };
+export function availabilityLabels(av) { return ['mc', 'A', 'B'].filter(k => av[k]).map(k => TIME_LABELS[k]); }
+// Times shared by everyone in `responses` (array). Empty array = no common time. Null = fewer than 2 people.
+export function sharedTimes(responses) {
+  const list = (responses || []).filter(Boolean);
+  if (list.length < 2) return null;
+  const avs = list.map(availabilityOf);
+  return ['mc', 'A', 'B'].filter(k => avs.every(a => a[k]));
+}
+export function sharedLabel(keys) { return keys.map(k => k === 'mc' ? 'MC' : k).join(' + '); }
+
 // ---- rules -------------------------------------------------------------
 
 export const TEAMS = ['A', 'B', 'C'];

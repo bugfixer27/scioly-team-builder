@@ -2,6 +2,7 @@
 import { esc, ls, toast } from '../ui.js';
 import { abbrev, band, teamStats, TEAMS } from '../score.js';
 import { createPicker } from './picker.js';
+import { timesChip, meetBadge, matchWith } from './meet.js';
 
 const TYPE_LABEL = { study: 'Study', build: 'Build', lab: 'Lab', trial: 'Trial' };
 
@@ -17,17 +18,29 @@ export function mount(root, ctx) {
   root.addEventListener('click', onClick);
   root.addEventListener('keydown', onKey);
   root.addEventListener('dragstart', onDragStart);
-  root.addEventListener('dragend', () => { root.querySelectorAll('.dragging').forEach(c => c.classList.remove('dragging')); root.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over')); dragging = null; });
+  root.addEventListener('dragend', () => { root.querySelectorAll('.dragging').forEach(c => c.classList.remove('dragging')); root.querySelectorAll('.drag-over, .fit-ok, .fit-bad').forEach(c => { c.classList.remove('drag-over', 'fit-ok', 'fit-bad'); delete c.dataset.fitDone; }); dragging = null; });
   root.addEventListener('dragover', e => {
     const col = e.target.closest('.col'); if (!col) return;
     e.preventDefault(); e.dataTransfer.dropEffect = 'move';
     const row = e.target.closest('.ev-row');
     root.querySelectorAll('.ev-row.drag-over').forEach(r => { if (r !== row) r.classList.remove('drag-over'); });
-    if (row) { row.classList.add('drag-over'); col.classList.remove('drag-over'); } else col.classList.add('drag-over');
+    if (row) {
+      row.classList.add('drag-over'); col.classList.remove('drag-over');
+      if (!row.dataset.fitDone) {
+        row.dataset.fitDone = '1';
+        const emails = dragging || [];
+        if (emails.length === 1) {
+          const byEmail = store.byEmail();
+          const occ = (store.state.assignments[row.dataset.team][row.dataset.event] || []).map(e => byEmail[e]);
+          const m = matchWith(byEmail[emails[0]], occ);
+          if (m) row.classList.add(m.status === 'ok' ? 'fit-ok' : 'fit-bad');
+        }
+      }
+    } else col.classList.add('drag-over');
   });
   root.addEventListener('dragleave', e => {
     const col = e.target.closest('.col'); if (col && !col.contains(e.relatedTarget)) col.classList.remove('drag-over');
-    const row = e.target.closest('.ev-row'); if (row && !row.contains(e.relatedTarget)) row.classList.remove('drag-over');
+    const row = e.target.closest('.ev-row'); if (row && !row.contains(e.relatedTarget)) { row.classList.remove('drag-over', 'fit-ok', 'fit-bad'); delete row.dataset.fitDone; }
   });
   root.addEventListener('drop', onDrop);
   root.addEventListener('input', onInput);
@@ -161,6 +174,7 @@ export function mount(root, ctx) {
         <label class="inline"><input type="checkbox" data-filter="unassigned" ${filters.unassigned ? 'checked' : ''}> no events yet</label>
         ${selBar}
         <span class="grow"></span>
+        <span class="legend small muted" title="Times a person can meet: MC = in the Mini Course, A / B = activity period. Events with 2+ people show ✓ when everyone shares a time, ⚠ when nobody's times line up.">Meet: <span class="times"><span class="t t-mc">MC</span><span class="t t-A">A</span><span class="t t-B">B</span></span> · <span class="meet ok">✓ shared</span> <span class="meet bad">⚠ none</span></span>
         <button class="btn xs ${showSlots ? 'primary' : ''}" type="button" data-toggle-slots aria-pressed="${showSlots}" title="Show event slots under each team">Event slots</button>
       </div>
       <div class="board">${COLS.map(col => renderCol(col, members, stats, settings)).join('')}</div>`;
@@ -199,11 +213,12 @@ export function mount(root, ctx) {
         const r = byEmail[email];
         const hard = r && r.hardNos.includes(ev.name), notInt = r && !hard && !r.interests.includes(ev.name);
         const mark = hard ? '<span class="hardno-flag" title="Listed as a hard no">!</span>' : notInt ? '<span class="dot amber" title="Not in their interests"></span>' : '';
-        return `<span class="slot filled ${hard ? 'hardno' : notInt ? 'notint' : ''}">${mark}<button class="nm" type="button" data-open="${esc(email)}" title="${esc(email)}${hard ? ' — HARD NO' : notInt ? ' — not an interest' : ''}">${esc(r ? shortName(r.name) : email)}</button><button class="x" type="button" data-unassign='${esc(JSON.stringify([team, ev.name, email]))}' aria-label="Remove ${esc(r ? r.name : email)} from ${esc(ev.name)}">×</button></span>`;
+        return `<span class="slot filled ${hard ? 'hardno' : notInt ? 'notint' : ''}">${mark}<button class="nm" type="button" data-open="${esc(email)}" title="${esc(email)}${hard ? ' — HARD NO' : notInt ? ' — not an interest' : ''}">${esc(r ? shortName(r.name) : email)}</button>${timesChip(r, { small: true })}<button class="x" type="button" data-unassign='${esc(JSON.stringify([team, ev.name, email]))}' aria-label="Remove ${esc(r ? r.name : email)} from ${esc(ev.name)}">×</button></span>`;
       });
+      const badge = meetBadge(list.map(e => byEmail[e]));
       for (let i = list.length; i < ev.slots; i++) chips.push(`<span class="slot empty"><button type="button" data-pick='${esc(JSON.stringify([team, ev.name]))}' aria-label="Assign someone to ${esc(ev.name)} on Team ${team}" title="Pick from Team ${team}">+</button></span>`);
       const full = list.length >= ev.slots;
-      return `<div class="ev-row ${full ? 'full' : ''}" data-team="${team}" data-event="${esc(ev.name)}" title="Drop a card here to assign them ${esc(ev.name)} on Team ${team}"><span class="ev-nm" title="${esc(ev.name)}">${esc(ev.name)}</span><span class="slots">${chips.join('')}</span></div>`;
+      return `<div class="ev-row ${full ? 'full' : ''}" data-team="${team}" data-event="${esc(ev.name)}" title="Drop a card here to assign them ${esc(ev.name)} on Team ${team}"><span class="ev-nm" title="${esc(ev.name)}">${esc(ev.name)}</span><span class="slots">${chips.join('')}${badge}</span></div>`;
     }).join('')).join('');
     return `<div class="col-events"><div class="ev-sec-head">Events <span class="muted">${s.slotsFilled}/${s.slotsTotal} slots · ${s.eventsTouched}/${s.eventsTotal} touched</span></div>${rows}</div>`;
   }
@@ -226,7 +241,7 @@ export function mount(root, ctx) {
     const b = band(m.score);
     return `<div class="${cls.join(' ')}" draggable="true" tabindex="0" data-email="${esc(m.email)}" role="button" aria-label="${esc(r.name)}, grade ${r.grade || '?'}, score ${m.score}, ${m.team ? 'Team ' + m.team : 'unplaced'}. Press A, B, C or U to move, Enter for details.">
       <div class="row1"><span class="name" title="${esc(r.email)}">${esc(r.name)}</span>${hn}<span class="grade ${r.grade === 12 ? 'senior' : ''}" title="Grade ${r.grade || '?'}${r.grade === 12 ? ' (senior)' : ''}">${r.grade || '?'}${r.grade === 12 ? '•' : ''}</span><span class="pill band-${b}" title="${b}-range">${m.score}</span></div>
-      <div class="row2">${r.selfTeam ? `<span class="chip outline" title="Self-placed team">says ${esc(r.selfTeam)}</span>` : ''}${r.activityPeriods ? `<span class="chip" title="Activity periods">${esc(shortAP(r.activityPeriods))}</span>` : ''}<span class="${heldCls}" title="Events held${held >= settings.eventWarnAt ? ' (at or above warning threshold)' : ''}">${held >= settings.eventWarnAt ? '⚠ ' : ''}${held} ev</span></div>
+      <div class="row2">${r.selfTeam ? `<span class="chip outline" title="Self-placed team">says ${esc(r.selfTeam)}</span>` : ''}${timesChip(r)}<span class="${heldCls}" title="Events held${held >= settings.eventWarnAt ? ' (at or above warning threshold)' : ''}">${held >= settings.eventWarnAt ? '⚠ ' : ''}${held} ev</span></div>
       <div class="ints">${ints}</div></div>`;
   }
   return { render };

@@ -1,6 +1,7 @@
 // Person drawer: verbatim answers, interests/hard-nos, score breakdown, event checklist, leader note.
 import { esc, fmtTime } from '../ui.js';
 import { computeScore, band, bandLabel, TEAMS } from '../score.js';
+import { timesChip, matchWith } from './meet.js';
 
 // Form order, short label, and the raw question text (shown on hover).
 const FIELDS = [
@@ -67,7 +68,9 @@ export function mount(root, ctx) {
     return '<option value="">— pick an event —</option>' + store.server.events.map(ev => {
       const list = store.state.assignments[team][ev.name] || [];
       const on = list.includes(email), full = list.length >= ev.slots;
-      const tag = on ? ' · already' : full ? ' · full' : r.hardNos.includes(ev.name) ? ' · HARD NO' : r.interests.includes(ev.name) ? ' · ★ interested' : '';
+      const fit = on || full ? null : matchWith(r, list.map(e => store.byEmail()[e]));
+      const meet = fit ? (fit.status === 'ok' ? ` · meets ${fit.shared.map(k => k === 'mc' ? 'MC' : k).join('+')}` : ' · ⚠ no shared time') : '';
+      const tag = (on ? ' · already' : full ? ' · full' : r.hardNos.includes(ev.name) ? ' · HARD NO' : r.interests.includes(ev.name) ? ' · ★ interested' : '') + meet;
       return `<option value="${esc(ev.name)}" ${on || full ? 'disabled' : ''}>${esc(ev.name)} (${list.length}/${ev.slots})${tag}</option>`;
     }).join('');
   }
@@ -93,7 +96,7 @@ export function mount(root, ctx) {
     const seg = `<div class="seg" role="group" aria-label="Team">${[['', 'Unplaced'], ['A', 'A'], ['B', 'B'], ['C', 'C']].map(([v, l]) => `<button type="button" data-team="${v}" aria-pressed="${(team || '') === v}">${l}</button>`).join('')}</div>`;
 
     const head = `<div class="drawer-head"><div class="top"><h2>${esc(r ? r.name : email)}</h2><button class="btn sm ghost" type="button" data-close aria-label="Close drawer">✕</button></div>
-      <div class="small muted">${esc(email)}${r && r.grade ? ` · grade ${r.grade}${r.grade === 12 ? ' (senior)' : ''}` : ''}</div>
+      <div class="small muted">${esc(email)}${r && r.grade ? ` · grade ${r.grade}${r.grade === 12 ? ' (senior)' : ''}` : ''} ${r ? `· can meet ${timesChip(r)}` : ''}</div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${seg}${sc ? `<span class="pill band-${band(sc.score)}">${sc.score}</span><span class="small">${bandLabel(sc.score)}</span>` : '<span class="chip amber">no response on file</span>'}</div>
       ${r ? `<div class="quick" role="group" aria-label="Assign to an event"><span class="small muted">Assign to</span><select class="input" name="qteam" aria-label="Team">${TEAMS.map(t => `<option ${t === (team || 'A') ? 'selected' : ''}>${t}</option>`).join('')}</select><select class="input" name="qevent" aria-label="Event">${eventOptions(team || 'A')}</select><button class="btn sm primary" type="button" data-quick>Assign</button></div>` : ''}</div>`;
 
@@ -109,7 +112,10 @@ export function mount(root, ctx) {
         const on = team && list.includes(email);
         const full = team && !on && list.length >= ev.slots;
         const hard = r.hardNos.includes(ev.name), int = r.interests.includes(ev.name);
-        return `<label class="${hard ? 'hardno' : ''} ${full ? 'full' : ''}" title="${hard ? 'HARD NO — will ask to confirm' : int ? 'Interested' : ''}"><input type="checkbox" data-ev='${esc(JSON.stringify([team, ev.name]))}' ${on ? 'checked' : ''} ${!team || full ? 'disabled' : ''}>${hard ? '<span class="hardno-flag">!</span> ' : int ? '<span class="dot green" title="interested"></span> ' : ''}${esc(ev.name)}<span class="avail">${team ? `${list.length}/${ev.slots}` : ''}</span></label>`;
+        const others = list.filter(e => e !== email).map(e => store.byEmail()[e]);
+        const fit = team ? matchWith(r, others) : null;
+        const meet = fit ? (fit.status === 'ok' ? `<span class="meet ok" title="Shares a time with the others on this event">✓ ${fit.shared.map(k => k === 'mc' ? 'MC' : k).join('+')}</span>` : '<span class="meet bad" title="No time in common with the others on this event">⚠</span>') : '';
+        return `<label class="${hard ? 'hardno' : ''} ${full ? 'full' : ''}" title="${hard ? 'HARD NO — will ask to confirm' : int ? 'Interested' : ''}"><input type="checkbox" data-ev='${esc(JSON.stringify([team, ev.name]))}' ${on ? 'checked' : ''} ${!team || full ? 'disabled' : ''}>${hard ? '<span class="hardno-flag">!</span> ' : int ? '<span class="dot green" title="interested"></span> ' : ''}${esc(ev.name)}<span class="avail">${meet} ${team ? `${list.length}/${ev.slots}` : ''}</span></label>`;
       }).join('');
       body = `
         <section><h3>Their answers</h3><dl class="answers">${answers}</dl>${extra ? `<h3 style="margin-top:10px">Other questions</h3><dl class="answers">${extra}</dl>` : ''}</section>
