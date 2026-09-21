@@ -1,0 +1,266 @@
+// Board view: Unplaced · Team A · Team B · Team C. Drag cards between columns, or focus a card and press A/B/C/U.
+import { esc, ls, toast } from '../ui.js';
+import { abbrev, band, teamStats, TEAMS } from '../score.js';
+import { createPicker } from './picker.js';
+import { timesChip, meetBadge, matchWith } from './meet.js';
+import { conflictsFor, overlaps, timeFor, blockOf, BLOCK_GROUPS } from '../schedule.js';
+import { commitmentLevel } from '../score.js';
+
+const TYPE_LABEL = { study: 'Study', build: 'Build', lab: 'Lab', trial: 'Trial' };
+
+const COLS = [{ key: 'U', title: 'Unplaced', team: null }, { key: 'A', title: 'Team A', team: 'A' }, { key: 'B', title: 'Team B', team: 'B' }, { key: 'C', title: 'Team C', team: 'C' }];
+
+export function mount(root, ctx) {
+  const { store, filters, actions } = ctx;
+  const selected = new Set();
+  let dragging = null;
+  const picker = createPicker(ctx);
+  let showSlots = ls.get('tbms.boardSlots', true) !== false;
+
+  root.addEventListener('click', onClick);
+  root.addEventListener('keydown', onKey);
+  root.addEventListener('dragstart', onDragStart);
+  root.addEventListener('dragend', () => { root.querySelectorAll('.dragging').forEach(c => c.classList.remove('dragging')); root.querySelectorAll('.drag-over, .fit-ok, .fit-bad, .fit-clash').forEach(c => { c.classList.remove('drag-over', 'fit-ok', 'fit-bad', 'fit-clash'); delete c.dataset.fitDone; }); dragging = null; });
+  root.addEventListener('dragover', e => {
+    const col = e.target.closest('.col'); if (!col) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    const row = e.target.closest('.ev-row');
+    root.querySelectorAll('.ev-row.drag-over').forEach(r => { if (r !== row) r.classList.remove('drag-over'); });
+    if (row) {
+      row.classList.add('drag-over'); col.classList.remove('drag-over');
+      if (!row.dataset.fitDone) {
+        row.dataset.fitDone = '1';
+        const emails = dragging || [];
+        if (emails.length === 1) {
+          const byEmail = store.byEmail();
+          const occ = (store.state.assignments[row.dataset.team][row.dataset.event] || []).map(e => byEmail[e]);
+          const clash = conflictsFor(store.state, row.dataset.team, row.dataset.event, emails[0]);
+          if (clash.length) row.classList.add('fit-clash');
+          else { const m = matchWith(byEmail[emails[0]], occ); if (m) row.classList.add(m.status === 'ok' ? 'fit-ok' : 'fit-bad'); }
+        }
+      }
+    } else col.classList.add('drag-over');
+  });
+  root.addEventListener('dragleave', e => {
+    const col = e.target.closest('.col'); if (col && !col.contains(e.relatedTarget)) col.classList.remove('drag-over');
+    const row = e.target.closest('.ev-row'); if (row && !row.contains(e.relatedTarget)) { row.classList.remove('drag-over', 'fit-ok', 'fit-bad', 'fit-clash'); delete row.dataset.fitDone; }
+  });
+  root.addEventListener('drop', onDrop);
+  root.addEventListener('input', onInput);
+  root.addEventListener('change', onInput);
+
+  function emailsFor(card) {
+    const email = card.dataset.email;
+    return selected.has(email) ? [...selected] : [email];
+  }
+  function onDragStart(e) {
+    const card = e.target.closest('.card'); if (!card) return;
+    dragging = emailsFor(card);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', dragging.join(','));
+    card.classList.add('dragging');
+  }
+  async function onDrop(e) {
+    const col = e.target.closest('.col'); if (!col) return;
+    e.preventDefault(); col.classList.remove('drag-over');
+    const row = e.target.closest('.ev-row');
+    const emails = dragging || (e.dataTransfer.getData('text/plain') || '').split(',').filter(Boolean);
+    dragging = null;
+    if (!emails.length) return;
+    const team = col.dataset.team || null;
+    if (row && team) {
+      if (emails.length > 1) { toast('Drop one person at a time onto an event slot.', 'error'); return; }
+      const ok = await actions.assignWithMove(emails[0], team, row.dataset.event);
+      if (ok) selected.clear();
+      return;
+    }
+    const ok = await actions.place(emails, team);
+    if (ok) selected.clear();
+  }
+  function onClick(e) {
+    const card = e.target.closest('.card');
+    if (e.target.closest('[data-remove]')) { actions.removeMember(e.target.closest('[data-remove]').dataset.remove); return; }
+    const mv = e.target.closest('[data-move-sel]');
+    if (mv) { const team = mv.dataset.moveSel === 'U' ? null : mv.dataset.moveSel; actions.place([...selected], team).then(ok => { if (ok) { selected.clear(); render(); } }); return; }
+    if (e.target.closest('[data-clear-sel]')) { selected.clear(); render(); return; }
+    if (e.target.closest('[data-toggle-slots]')) { showSlots = !showSlots; ls.set('tbms.boardSlots', showSlots); render(); return; }
+    const un = e.target.closest('[data-unassign]');
+    if (un) { const [team, event, email] = JSON.parse(un.dataset.unassign); actions.unassign(team, event, email); return; }
+    const pk = e.target.closest('[data-pick]');
+    if (pk) { const [team, event] = JSON.parse(pk.dataset.pick); picker.open(pk, team, event, () => { const again = root.querySelector(`[data-pick='${JSON.stringify([team, event])}']`); if (again) again.focus(); }); return; }
+    const op = e.target.closest('[data-open]');
+    if (op) { actions.openDrawer(op.dataset.open); return; }
+    if (!card) return;
+    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      toggleSel(card.dataset.email); render(); return;
+    }
+    actions.openDrawer(card.dataset.email);
+  }
+  function toggleSel(email) { if (selected.has(email)) selected.delete(email); else selected.add(email); }
+  async function onKey(e) {
+    const card = e.target.closest('.card'); if (!card) return;
+    const k = e.key.toLowerCase();
+    if (['a', 'b', 'c', 'u'].includes(k) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      const emails = emailsFor(card);
+      const ok = await actions.place(emails, k === 'u' ? null : k.toUpperCase());
+      if (ok) { selected.clear(); focusCard(card.dataset.email); }
+    } else if (e.key === 'Enter') { e.preventDefault(); actions.openDrawer(card.dataset.email); }
+    else if (e.key === ' ') { e.preventDefault(); toggleSel(card.dataset.email); render(); focusCard(card.dataset.email); }
+  }
+  function focusCard(email) { const el = root.querySelector(`.card[data-email="${CSS.escape(email)}"]`); if (el) el.focus(); }
+  function onInput(e) {
+    const t = e.target; if (!t.dataset.filter) return;
+    const f = t.dataset.filter;
+    if (f === 'grade') { if (t.checked) filters.grades.add(Number(t.value)); else filters.grades.delete(Number(t.value)); }
+    else if (t.type === 'checkbox') filters[f] = t.checked;
+    else filters[f] = t.value;
+    if (e.type === 'input' && f !== 'search') return;
+    render();
+  }
+
+  // ---- data ----
+  function allMembers() {
+    const byEmail = store.byEmail();
+    const emails = new Set([...store.responses.map(r => r.email), ...Object.keys(store.state.members)]);
+    return [...emails].map(email => {
+      const r = byEmail[email] || null, m = store.state.members[email] || null;
+      const held = TEAMS.flatMap(t => Object.keys(store.state.assignments[t]).filter(ev => store.state.assignments[t][ev].includes(email)).map(ev => ({ team: t, event: ev })));
+      return { email, r, team: m && m.team ? m.team : null, note: m ? m.note : '', held, score: r ? ctx.scoreOf(r) : null };
+    });
+  }
+  function passes(mm) {
+    const r = mm.r;
+    if (filters.search) { const q = filters.search.toLowerCase(); if (!(mm.email.includes(q) || (r && r.name.toLowerCase().includes(q)))) return false; }
+    if (filters.grades.size && !(r && filters.grades.has(r.grade))) return false;
+    if (filters.commitment && !(r && commitmentLevel(r.commitment) === filters.commitment)) return false;
+    if (filters.hardNo && !(r && r.hardNos.length)) return false;
+    if (filters.unassigned && mm.held.length) return false;
+    return true;
+  }
+  function sortFn(a, b) {
+    switch (filters.sort) {
+      case 'name': return (a.r ? a.r.name : a.email).localeCompare(b.r ? b.r.name : b.email);
+      case 'grade': return ((b.r && b.r.grade) || 0) - ((a.r && a.r.grade) || 0) || (b.score || 0) - (a.score || 0);
+      case 'events': return b.held.length - a.held.length || (b.score || 0) - (a.score || 0);
+      default: return (b.score ?? -1) - (a.score ?? -1) || (a.r ? a.r.name : a.email).localeCompare(b.r ? b.r.name : b.email);
+    }
+  }
+
+  // ---- render ----
+  function render() {
+    if (!store.loaded && !store.responses.length) {
+      root.innerHTML = store.loading
+        ? `<div class="loading-panel" role="status" aria-live="polite"><span class="spinner big"></span><h2>Loading members from the Google Sheet…</h2><p class="muted">Google can take up to a minute to wake the script the first time you open this page. Later loads take a few seconds.</p><p class="small muted loading-secs"></p></div>`
+        : !(window.TEAMBUILDER_CONFIG || {}).apiUrl ? '<div class="empty-state"><h2>Middle school builder — not connected yet</h2><p>Once the middle school Apps Script is deployed and its URL is in <code>ms/config.js</code>, the roster from the middle school form will load here.</p></div>'
+        : '<div class="empty-state"><h2>Couldn’t load the roster</h2><p>The API didn’t answer. Click <b>Reload</b> to try again. If it keeps failing, check the API URL in <code>config.js</code> (Settings → Diagnostics shows what it’s using).</p></div>';
+      if (store.loading) { const el = root.querySelector('.loading-secs'); const t = setInterval(() => { if (!el.isConnected) return clearInterval(t); el.textContent = `${Math.round((Date.now() - store.loadStartedAt) / 1000)} s so far`; }, 1000); }
+      return;
+    }
+    const events = store.server.events;
+    const settings = store.state.settings;
+    const stats = teamStats(store.state, store.responses, events, settings.weights);
+    const members = allMembers();
+    const evOptions = events.map(ev => `<option value="${esc(ev.name)}" ${filters.interestEvent === ev.name ? 'selected' : ''}>${esc(ev.name)}</option>`).join('');
+    const selBar = selected.size ? `<span class="sel-bar">${selected.size} selected · Move to ${['A', 'B', 'C', 'U'].map(t => `<button class="btn xs" data-move-sel="${t}">${t === 'U' ? 'Unplaced' : t}</button>`).join('')} <button class="btn xs ghost" data-clear-sel>Clear</button></span>` : '';
+    root.innerHTML = `
+      <div class="toolbar" role="search">
+        <input id="search" class="input" type="search" placeholder="Search name/email  ( / )" value="${esc(filters.search)}" data-filter="search" aria-label="Search members" style="width:200px">
+        <label class="inline">Sort <select class="input" data-filter="sort">${[['score', 'Score ↓'], ['name', 'Name'], ['grade', 'Grade'], ['events', 'Events held']].map(([v, l]) => `<option value="${v}" ${filters.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <span class="inline" style="display:inline-flex;gap:4px;align-items:center;font-size:12px">Grade ${[6, 7, 8].map(g => `<label class="inline"><input type="checkbox" value="${g}" data-filter="grade" ${filters.grades.has(g) ? 'checked' : ''}>${g}</label>`).join('')}</span>
+        <label class="inline">Commitment <select class="input" data-filter="commitment"><option value="">any</option>${[['very', 'Very committed'], ['committed', 'Committed'], ['not', 'Not yet']].map(([v, l]) => `<option value="${v}" ${filters.commitment === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="inline">Interested in <select class="input" data-filter="interestEvent"><option value="">— any event —</option>${evOptions}</select></label>
+        <label class="inline"><input type="checkbox" data-filter="hardNo" ${filters.hardNo ? 'checked' : ''}> has hard-no</label>
+        <label class="inline"><input type="checkbox" data-filter="unassigned" ${filters.unassigned ? 'checked' : ''}> no events yet</label>
+        ${selBar}
+        <span class="grow"></span>
+        <span class="legend small muted" title="Events with the same colour run at the same time — nobody can hold two of them. Build events have no colour and never overlap.">Same colour = same time: ${BLOCK_GROUPS.map(g => `<span class="color-dot" style="background:${g.color}" title="${esc(g.label + ': ' + g.events.join(', '))}"></span>`).join('')}</span>
+        <button class="btn xs ${showSlots ? 'primary' : ''}" type="button" data-toggle-slots aria-pressed="${showSlots}" title="Show event slots under each team">Event slots</button>
+      </div>
+      <div class="board">${COLS.map(col => renderCol(col, members, stats, settings)).join('')}</div>`;
+  }
+
+  function renderCol(col, members, stats, settings) {
+    const list = members.filter(m => m.team === col.team).sort(sortFn);
+    const visible = list.filter(passes);
+    let head;
+    if (col.team) {
+      const s = stats[col.team];
+      const overCap = s.count > settings.teamCap, overSen = s.seniors > settings.seniorCap;
+      const pct = s.eventsTotal ? Math.round(100 * s.eventsTouched / s.eventsTotal) : 0;
+      head = `<div class="col-head ${overCap || overSen ? 'over' : ''}"><h2>${col.title} ${overCap || overSen ? '<span class="chip red" title="Division B rule exceeded">⚠ over limit</span>' : ''}</h2>
+        <div class="stats">
+          <span class="${overCap ? 'bad' : ''}" title="Members (max ${settings.teamCap})">${overCap ? '⚠ ' : ''}${s.count}/${settings.teamCap}</span>
+          ${s.seniors ? `<span class="${overSen ? 'bad' : ''}" title="Ninth-graders (Division B max ${settings.seniorCap})">${overSen ? '⚠ ' : ''}9th ${s.seniors}/${settings.seniorCap}</span>` : ''}
+          <span title="Average commitment score">avg ${s.avgScore === null ? '—' : s.avgScore}</span>
+          <span class="meter" title="Events with at least one slot filled">cov <i><b style="width:${pct}%"></b></i> ${s.eventsTouched}/${s.eventsTotal}</span>
+        </div></div>`;
+    } else {
+      head = `<div class="col-head"><h2>${col.title}</h2><div class="stats"><span>${list.length} member${list.length === 1 ? '' : 's'}</span></div></div>`;
+    }
+    const body = visible.length ? visible.map(m => renderCard(m, settings)).join('') : `<div class="col-empty">${list.length ? 'No cards match the filters' : 'Drop members here'}</div>`;
+    const evs = col.team && showSlots ? renderEvents(col.team, stats[col.team]) : '';
+    return `<div class="col" data-team="${col.team || ''}" aria-label="${col.title}">${head}<div class="col-body">${body}</div>${evs}</div>`;
+  }
+
+  function renderEvents(team, s) {
+    const byEmail = store.byEmail();
+    const events = store.server.events;
+    const types = [...new Set(events.map(e => e.type))];
+    const rows = types.map(type => `<div class="ev-type">${TYPE_LABEL[type] || type}</div>` + events.filter(ev => ev.type === type).map(ev => {
+      const list = store.state.assignments[team][ev.name] || [];
+      const chips = list.map(email => {
+        const r = byEmail[email];
+        const hard = r && r.hardNos.includes(ev.name), notInt = r && !hard && !r.interests.includes(ev.name);
+        const mark = hard ? '<span class="hardno-flag" title="Listed as a hard no">!</span>' : notInt ? '<span class="dot amber" title="Not in their interests"></span>' : '';
+        const clash = conflictsFor(store.state, team, ev.name, email);
+        const cmark = clash.length ? `<span class="clash-flag" title="${esc('Schedule overlap: also holds ' + clash.join(' and ') + ' in the same time block')}">⚠</span>` : '';
+        return `<span class="slot filled ${hard ? 'hardno' : notInt ? 'notint' : ''} ${clash.length ? 'clash' : ''}">${cmark}${mark}<button class="nm" type="button" data-open="${esc(email)}" title="${esc(email)}${clash.length ? ' — overlaps ' + esc(clash.join(' & ')) : ''}${hard ? ' — HARD NO' : notInt ? ' — not an interest' : ''}">${esc(r ? shortName(r.name) : email)}</button>${timesChip(r, { small: true })}<button class="x" type="button" data-unassign='${esc(JSON.stringify([team, ev.name, email]))}' aria-label="Remove ${esc(r ? r.name : email)} from ${esc(ev.name)}">×</button></span>`;
+      });
+      const badge = meetBadge(list.map(e => byEmail[e]));
+      for (let i = list.length; i < ev.slots; i++) chips.push(`<span class="slot empty"><button type="button" data-pick='${esc(JSON.stringify([team, ev.name]))}' aria-label="Assign someone to ${esc(ev.name)} on Team ${team}" title="Pick from Team ${team}">+</button></span>`);
+      const full = list.length >= ev.slots;
+      return `<div class="ev-row ${full ? 'full' : ''}" data-team="${team}" data-event="${esc(ev.name)}" title="Drop a card here to assign them ${esc(ev.name)} on Team ${team}"><span class="ev-nm" title="${esc(ev.name + (blockOf(ev.name) ? ' · ' + blockOf(ev.name).label + ' block (' + blockOf(ev.name).events.filter(o => o !== ev.name).join(', ') + ' run at the same time)' : ' · build event, self-scheduled'))}">${blockOf(ev.name) ? `<span class="color-dot" style="background:${blockOf(ev.name).color}"></span>` : ''}${esc(ev.name)}</span><span class="slots">${chips.join('')}${badge}</span></div>`;
+    }).join('')).join('');
+    return `<div class="col-events"><div class="ev-sec-head">Events <span class="muted">${s.slotsFilled}/${s.slotsTotal} slots · ${s.eventsTouched}/${s.eventsTotal} touched</span></div>${rows}</div>`;
+  }
+
+  function renderCard(m, settings) {
+    const r = m.r;
+    const cls = ['card'];
+    if (selected.has(m.email)) cls.push('selected');
+    if (filters.interestEvent) { if (r && r.interests.includes(filters.interestEvent)) cls.push('highlight'); else cls.push('dimmed'); }
+    if (!r) {
+      cls.push('ghost');
+      return `<div class="${cls.join(' ')}" draggable="true" tabindex="0" data-email="${esc(m.email)}" role="button" aria-label="${esc(m.email)}, no response on file">
+        <div class="row1"><span class="name">${esc(m.email)}</span><span class="chip amber">no response on file</span></div>
+        <div class="row2"><span class="chip">${m.held.length} ev</span><button class="btn xs danger" data-remove="${esc(m.email)}" title="Remove from the working state">Remove</button></div></div>`;
+    }
+    const held = m.held.length;
+    const heldCls = held >= settings.eventWarnAt ? 'chip amber' : 'chip';
+    const ints = r.interests.slice(0, 6).map(ev => `<span class="${ev === filters.interestEvent ? 'match' : ''}" title="${esc(ev.replace(/^\?/, ''))}">${esc(abbrev(ev))}</span>`).join('');
+    const hn = r.hardNos.length ? `<span class="hardno-flag" title="Hard no: ${esc(r.hardNos.join(', '))}" aria-label="Has hard-no events: ${esc(r.hardNos.join(', '))}">!</span>` : '';
+    const b = band(m.score);
+    // Events they hold on their own team; any that run in the same time block get a red ⚠ (schedule rule).
+    const mine = m.held.filter(h => h.team === m.team).map(h => h.event).sort();
+    const clashOf = ev => mine.filter(o => overlaps(o, ev));
+    const nClash = mine.filter(ev => clashOf(ev).length).length;
+    const heldRow = mine.length ? `<div class="held" aria-label="Events held">${mine.map(ev => { const c = clashOf(ev); const t = timeFor(ev); return `<span class="${c.length ? 'clash' : ''}" title="${esc(ev + (t ? ' · ' + t : '') + (c.length ? '\n⚠ overlaps ' + c.join(' and ') + ' — same time block' : ''))}">${c.length ? '⚠' : ''}${esc(abbrev(ev))}</span>`; }).join('')}</div>` : '';
+    const clashChip = nClash ? `<span class="chip red" title="${esc('Schedule overlap: ' + mine.filter(ev => clashOf(ev).length).join(', ') + ' run at the same time')}">⚠ overlap</span>` : '';
+    return `<div class="${cls.join(' ')}" draggable="true" tabindex="0" data-email="${esc(m.email)}" role="button" aria-label="${esc(r.name)}, grade ${r.grade || '?'}, score ${m.score}, ${m.team ? 'Team ' + m.team : 'unplaced'}${nClash ? ', has overlapping events' : ''}. Press A, B, C or U to move, Enter for details.">
+      <div class="row1"><span class="name" title="${esc(r.email)}">${esc(r.name)}</span>${hn}<span class="grade" title="Grade ${r.grade || '?'}">${r.grade || '?'}</span><span class="pill band-${b}" title="${b}-range">${m.score}</span></div>
+      <div class="row2">${commitChip(r)}<span class="${heldCls}" title="Events held${held >= settings.eventWarnAt ? ' (at or above warning threshold)' : ''}">${held >= settings.eventWarnAt ? '⚠ ' : ''}${held} ev</span>${clashChip}</div>
+      ${heldRow}<div class="ints">${ints}</div></div>`;
+  }
+  return { render };
+}
+
+const COMMIT_CHIP = { very: ['green', 'very committed'], committed: ['outline', 'committed'], not: ['amber', 'not yet committed'] };
+function commitChip(r) {
+  const c = COMMIT_CHIP[commitmentLevel(r.commitment)];
+  return c ? `<span class="chip ${c[0]}" title="${esc(r.commitmentRaw || r.commitment || '')}">${c[1]}</span>` : '';
+}
+
+export function shortName(n) { const p = String(n).trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[p.length - 1][0]}.` : n; }
+export function shortAP(s) { return /both/i.test(s) ? 'AP A+B' : 'AP ' + s; }

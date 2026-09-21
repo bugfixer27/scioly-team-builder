@@ -282,3 +282,20 @@ dialog.modal .m-foot { padding: 10px 16px; border-top: 1px solid var(--line-2); 
   .ev-table-wrap { overflow-x: auto; }
   .ev-table td.evname { width: auto; }
 }
+
+/* ---- division switcher (top-left) + middle school accent ---- */
+.division { position: relative; display: inline-flex; align-items: center; flex: none; }
+.division select { appearance: none; -webkit-appearance: none; height: 32px; padding: 0 30px 0 12px; border-radius: var(--r); border: 2px solid var(--maroon); background: var(--maroon); color: #fff; font-weight: 700; font-size: 13px; letter-spacing: .01em; cursor: pointer; }
+.division select:hover { background: var(--maroon-700); border-color: var(--maroon-700); }
+.division select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.division select option { background: var(--panel); color: var(--ink); font-weight: 500; }
+.division::after { content: "▾"; position: absolute; right: 11px; top: 50%; transform: translateY(-50%); color: #fff; font-size: 12px; pointer-events: none; }
+[data-theme="dark"] .division select, [data-theme="dark"] .division::after { color: #14110d; }
+.div-badge { font-family: var(--font-ui); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: var(--maroon-100); color: var(--maroon); margin-left: 6px; vertical-align: 2px; }
+.color-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; border: 1px solid rgba(0, 0, 0, .25); flex: none; }
+.block-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.block-legend > div { border: 1px solid var(--line); border-radius: var(--r); padding: 6px 8px; font-size: 12px; }
+.block-legend b { display: flex; align-items: center; margin-bottom: 2px; }
+[data-division="ms"] { --maroon: #0f5c6e; --maroon-700: #0a4452; --maroon-100: #dcf0f4; }
+[data-division="ms"][data-theme="dark"] { --maroon: #4fc3d9; --maroon-700: #35a3b9; --maroon-100: #0f2f37; }
+@media (max-width: 900px) { .division { order: -1; } .topbar .title { width: auto; flex: 1; } }
