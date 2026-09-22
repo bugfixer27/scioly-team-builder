@@ -116,6 +116,9 @@ export function sharedLabel(keys) { return keys.map(k => k === 'mc' ? 'MC' : k).
 // ---- rules -------------------------------------------------------------
 
 export const TEAMS = ['A', 'B', 'C'];
+// Display names. Team C is the 9th grade team.
+export const TEAM_NAMES = { A: 'Team A', B: 'Team B', C: '9th Grade Team' };
+export function teamName(t) { return TEAM_NAMES[t] || (t ? 'Team ' + t : 'Unplaced'); }
 
 export function membersOnTeam(state, team) {
   const m = (state && state.members) || {};

@@ -1,6 +1,6 @@
 // Person drawer: verbatim answers, interests/hard-nos, score breakdown, event checklist, leader note.
 import { esc, fmtTime } from '../ui.js';
-import { computeScore, band, bandLabel, TEAMS } from '../score.js';
+import { computeScore, band, bandLabel, TEAMS, teamName } from '../score.js';
 import { timesChip, matchWith } from './meet.js';
 import { conflictsFor } from '../schedule.js';
 
@@ -95,12 +95,12 @@ export function mount(root, ctx) {
     const events = store.server.events;
     const held = TEAMS.flatMap(t => Object.keys(store.state.assignments[t]).filter(ev => store.state.assignments[t][ev].includes(email)).map(ev => ({ team: t, event: ev })));
     const sc = r ? computeScore(r, store.state.settings.weights) : null;
-    const seg = `<div class="seg" role="group" aria-label="Team">${[['', 'Unplaced'], ['A', 'A'], ['B', 'B'], ['C', 'C']].map(([v, l]) => `<button type="button" data-team="${v}" aria-pressed="${(team || '') === v}">${l}</button>`).join('')}</div>`;
+    const seg = `<div class="seg" role="group" aria-label="Team">${[['', 'Unplaced'], ['A', 'A'], ['B', 'B'], ['C', teamName('C')]].map(([v, l]) => `<button type="button" data-team="${v}" aria-pressed="${(team || '') === v}">${l}</button>`).join('')}</div>`;
 
     const head = `<div class="drawer-head"><div class="top"><h2>${esc(r ? r.name : email)}</h2><button class="btn sm ghost" type="button" data-close aria-label="Close drawer">✕</button></div>
       <div class="small muted">${esc(email)}${r && r.grade ? ` · grade ${r.grade}${r.grade === 12 ? ' (senior)' : ''}` : ''} ${r ? `· can meet ${timesChip(r)}` : ''}</div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${seg}${sc ? `<span class="pill band-${band(sc.score)}">${sc.score}</span><span class="small">${bandLabel(sc.score)}</span>` : '<span class="chip amber">no response on file</span>'}</div>
-      ${r ? `<div class="quick" role="group" aria-label="Assign to an event"><span class="small muted">Assign to</span><select class="input" name="qteam" aria-label="Team">${TEAMS.map(t => `<option ${t === (team || 'A') ? 'selected' : ''}>${t}</option>`).join('')}</select><select class="input" name="qevent" aria-label="Event">${eventOptions(team || 'A')}</select><button class="btn sm primary" type="button" data-quick>Assign</button></div>` : ''}</div>`;
+      ${r ? `<div class="quick" role="group" aria-label="Assign to an event"><span class="small muted">Assign to</span><select class="input" name="qteam" aria-label="Team">${TEAMS.map(t => `<option value="${t}" ${t === (team || 'A') ? 'selected' : ''}>${teamName(t)}</option>`).join('')}</select><select class="input" name="qevent" aria-label="Event">${eventOptions(team || 'A')}</select><button class="btn sm primary" type="button" data-quick>Assign</button></div>` : ''}</div>`;
 
     let body;
     if (!r) {

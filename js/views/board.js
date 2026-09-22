@@ -1,13 +1,13 @@
 // Board view: Unplaced · Team A · Team B · Team C. Drag cards between columns, or focus a card and press A/B/C/U.
 import { esc, ls, toast } from '../ui.js';
-import { abbrev, band, teamStats, TEAMS } from '../score.js';
+import { abbrev, band, teamStats, TEAMS, teamName } from '../score.js';
 import { createPicker } from './picker.js';
 import { timesChip, meetBadge, matchWith } from './meet.js';
 import { conflictsFor, overlaps, timeFor } from '../schedule.js';
 
 const TYPE_LABEL = { study: 'Study', build: 'Build', lab: 'Lab', trial: 'Trial' };
 
-const COLS = [{ key: 'U', title: 'Unplaced', team: null }, { key: 'A', title: 'Team A', team: 'A' }, { key: 'B', title: 'Team B', team: 'B' }, { key: 'C', title: 'Team C', team: 'C' }];
+const COLS = [{ key: 'U', title: 'Unplaced', team: null }, { key: 'A', title: 'Team A', team: 'A' }, { key: 'B', title: 'Team B', team: 'B' }, { key: 'C', title: teamName('C'), team: 'C' }];
 
 export function mount(root, ctx) {
   const { store, filters, actions } = ctx;

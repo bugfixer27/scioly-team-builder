@@ -1,7 +1,7 @@
 // Slot picker popover shared by the Board and Events views: lists only members placed on that team,
 // sorted interested-first → fewest events held → score desc.
 import { esc, placePopover } from '../ui.js';
-import { band, TEAMS } from '../score.js';
+import { band, TEAMS, teamName } from '../score.js';
 import { timesChip, matchWith, meetBadge } from './meet.js';
 import { conflictsFor, timeFor } from '../schedule.js';
 
@@ -53,7 +53,7 @@ export function createPicker(ctx) {
       const teamNum = (store.state.settings.teamNumbers || {})[team];
       const when = timeFor(event, teamNum);
       const titleEl = el.querySelector('.picker-title');
-      titleEl.innerHTML = `${esc(event)} · Team ${team}${when ? ` <span class="muted small">· ${esc(when)}</span>` : ''}` + (current.length ? ` · with ${current.map(r => `${esc(r.name)} ${timesChip(r, { small: true })}`).join(', ')}` : '');
+      titleEl.innerHTML = `${esc(event)} · ${esc(teamName(team))}${when ? ` <span class="muted small">· ${esc(when)}</span>` : ''}` + (current.length ? ` · with ${current.map(r => `${esc(r.name)} ${timesChip(r, { small: true })}`).join(', ')}` : '');
       const unplaced = store.responses.filter(r => !store.state.members[r.email] || !store.state.members[r.email].team).length;
       el.querySelector('ul').innerHTML = rows.length
         ? rows.map(m => `<li role="option" class="${m.clash.length ? 'clash' : ''}"><button type="button" data-assign="${esc(m.email)}" ${m.clash.length ? `title="${esc('Overlaps ' + m.clash.join(' and ') + (when ? ' (' + when + ')' : ' — same time block') + '. Cannot be assigned.')}"` : ''}><span>${m.clash.length ? `<span class="meet clash" aria-label="Schedule overlap">⚠ overlaps ${esc(m.clash.join(' & '))}</span> ` : ''}<b>${esc(m.name)}</b> ${timesChip(m.r, { small: true })}${m.fit ? (m.fit.status === 'ok' ? `<span class="meet ok">✓ ${m.fit.shared.map(k => k === 'mc' ? 'MC' : k).join('+')}</span>` : '<span class="meet bad">⚠ no shared time</span>') : ''}</span><span class="pill band-${band(m.score)}">${m.score}</span><span class="chip" title="Events held">${m.held} ev</span>${m.tag === 'interested' ? '<span class="chip green">interested</span>' : m.tag === 'hardno' ? '<span class="chip red">HARD NO</span>' : '<span class="chip">neutral</span>'}</button></li>`).join('')

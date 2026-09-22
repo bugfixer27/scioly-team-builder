@@ -1,6 +1,6 @@
 // Events view: matrix of 24 events × Team A/B/C with slot chips and a per-team slot picker.
 import { esc } from '../ui.js';
-import { teamStats, TEAMS } from '../score.js';
+import { teamStats, TEAMS, teamName } from '../score.js';
 import { createPicker } from './picker.js';
 import { timesChip, meetBadge } from './meet.js';
 import { conflictsFor, timeFor } from '../schedule.js';
@@ -48,7 +48,7 @@ export function mount(root, ctx) {
     root.innerHTML = `
       <div class="toolbar"><div class="ev-summary">${summary}</div><span class="grow"></span><label class="inline"><input type="checkbox" data-ev="emptyOnly" ${ui.emptyOnly ? 'checked' : ''}> show only events with empty slots</label></div>
       <div class="toolbar" role="group" aria-label="Event type filter">${chips}</div>
-      <div class="ev-table-wrap card-panel" style="padding:0"><table class="ev-table"><thead><tr><th>Event</th>${TEAMS.map(t => `<th>Team ${t} <span class="muted">(${stats[t].count})</span></th>`).join('')}</tr></thead><tbody>${rows}${load}</tbody></table></div>`;
+      <div class="ev-table-wrap card-panel" style="padding:0"><table class="ev-table"><thead><tr><th>Event</th>${TEAMS.map(t => `<th>${teamName(t)} <span class="muted">(${stats[t].count})</span></th>`).join('')}</tr></thead><tbody>${rows}${load}</tbody></table></div>`;
   }
 
   function renderCell(team, ev, byEmail) {

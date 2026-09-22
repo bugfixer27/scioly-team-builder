@@ -1,6 +1,6 @@
 // Single in-memory store. The pure functions (everything above `createStore`) never touch the DOM
 // and are unit-tested in Node. State shape follows API_CONTRACT.md.
-import { TEAMS, eventsHeldBy } from './score.js';
+import { TEAMS, eventsHeldBy, teamName } from './score.js';
 
 export const DEFAULT_SETTINGS = {
   teamCap: 15, seniorCap: 7, eventWarnAt: 4,
@@ -181,7 +181,7 @@ export function buildRoster(state, responses) {
 
 export function buildEventRows(state, responses, events) {
   const byEmail = {}; (responses || []).forEach(r => { byEmail[r.email] = r; });
-  const rows = [['Event', 'Slots', 'Team A', 'Team B', 'Team C']];
+  const rows = [['Event', 'Slots', teamName('A'), teamName('B'), teamName('C')]];
   (events || []).forEach(ev => rows.push([ev.name, ev.slots].concat(TEAMS.map(t => ((state.assignments[t] || {})[ev.name] || []).map(e => (byEmail[e] || {}).name || e).join(', ')))));
   return rows;
 }
