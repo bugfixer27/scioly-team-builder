@@ -48,7 +48,7 @@ export function mount(root, ctx) {
             <label class="field">9th-grader cap (Division B: 5)<input class="input" type="number" min="0" value="${s.seniorCap}" data-s="seniorCap"></label>
             <label class="field">Warn at n events<input class="input" type="number" min="1" value="${s.eventWarnAt}" data-s="eventWarnAt"></label></div></div>
         <div class="card-panel"><h3>Competition schedule</h3>
-          <p class="small muted" style="margin:0 0 8px">Events in the same colour block run at the same time, so nobody can hold two of them on one team; the app blocks it. Build events (${esc(SELF_SCHEDULE.join(', '))}) are self-scheduled and never overlap.</p>
+          <p class="small muted" style="margin:0 0 8px">Per the <a href="https://sites.google.com/view/nycregionals/schedule" target="_blank" rel="noopener">NYC Regionals schedule</a>, events in the same group run at the same time (same slot pair, same team order), so nobody can hold two of them on one team; the app blocks it. Build events (${esc(SELF_SCHEDULE.join(', '))}) are self-scheduled and never overlap.</p>
           <div class="block-legend">${BLOCK_GROUPS.map(g => `<div><b><span class="color-dot" style="background:${g.color}"></span>${esc(g.label)}</b>${esc(g.events.join(' · '))}</div>`).join('')}</div>
           <p class="small" id="live-sched" style="margin:8px 0 0"></p></div>
         <div class="card-panel"><h3>This computer</h3>

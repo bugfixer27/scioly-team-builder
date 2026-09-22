@@ -1,20 +1,21 @@
-// Competition-day schedule (Division B, middle school) and the one rule built on it:
-// NOBODY may hold two events that run in the same time block on the same team.
+// Competition-day schedule (Division B, NYC Regionals — https://sites.google.com/view/nycregionals/schedule)
+// and the one rule built on it: NOBODY may hold two events that run in the same time block on the same team.
 //
-// The leaders' colour-coded schedule puts the 17 timed events into six concurrent blocks
-// (one colour each). Two events collide exactly when they share a colour. Build events are
-// self-scheduled and never collide. Everything here is pure and DOM-free.
+// The regional runs six 50-minute slots; each timed event takes a pair of slots, with teams 1-13 in one and
+// teams 14-27 in the other. Two events collide exactly when they share the slot pair AND the team order —
+// regardless of your team number. Build events are self-scheduled and never collide (Thermodynamics' written
+// exam is timed). Everything here is pure and DOM-free.
 
-// One entry per colour block on the leaders' schedule sheet (colours are saturated versions of the sheet's pastels so the dots read in dark mode).
+// One entry per conflict group (colour is only for the dots in the UI).
 export const BLOCK_GROUPS = [
-  { key: 'red',    label: 'Red',    color: '#cf5a4a', events: ['Codebusters', 'Disease Detectives', 'Remote Sensing'] },
-  { key: 'yellow', label: 'Yellow', color: '#e3b62f', events: ['Water Quality', 'Experimental Design', 'Solar System'] },
-  { key: 'green',  label: 'Green',  color: '#5aa457', events: ['Botany', 'Meteorology'] },
-  { key: 'blue',   label: 'Blue',   color: '#4a7fdb', events: ['Circuit Lab', 'Dynamic Planet', 'Food Science'] },
-  { key: 'purple', label: 'Purple', color: '#8b6cc9', events: ['Heredity', 'Rocks and Minerals', 'Thermodynamics'] },
-  { key: 'pink',   label: 'Pink',   color: '#d9659f', events: ['Anatomy & Physiology', 'Crime Busters', 'Write It Do It'] }
+  { key: 'am1',  label: '8:30–10:20 · teams 1-13 first',  color: '#cf5a4a', events: ['Anatomy & Physiology', 'Crime Busters', 'Remote Sensing', 'Thermodynamics'] },
+  { key: 'am2',  label: '8:30–10:20 · teams 14-27 first', color: '#e3b62f', events: ['Circuit Lab', 'Disease Detectives', 'Experimental Design', 'Rocks and Minerals'] },
+  { key: 'mid1', label: '10:30–12:20 · teams 1-13 first', color: '#5aa457', events: ['Dynamic Planet', 'Food Science', 'Heredity'] },
+  { key: 'mid2', label: '10:30–12:20 · teams 14-27 first', color: '#4a7fdb', events: ['Botany', 'Meteorology', 'Write It Do It'] },
+  { key: 'pm1',  label: '12:30–2:20 · teams 1-13 first',  color: '#8b6cc9', events: ['Codebusters', 'Solar System'] },
+  { key: 'pm2',  label: '12:30–2:20 · teams 14-27 first', color: '#d9659f', events: ['Water Quality'] }
 ];
-export const BLOCKS = BLOCK_GROUPS.map(g => g.label + ' block');
+export const BLOCKS = BLOCK_GROUPS.map(g => g.label);
 export const ROTATION = {};
 BLOCK_GROUPS.forEach((g, i) => g.events.forEach(ev => { ROTATION[ev] = i; }));
 export const SELF_SCHEDULE = ['Boomilever', 'Elastic Launched Glider', 'Hovercraft', 'Ping Pong Parachute', 'Roller Coaster', 'Scrambler'];
@@ -31,7 +32,7 @@ export function isScheduled(event) { return groupOf(event) !== null; }
 // Which colour block (0-5) an event runs in, or null. (The team number does not matter here.)
 export function blockFor(event) { return groupOf(event); }
 export function blockOf(event) { const g = groupOf(event); return g === null ? null : BLOCK_GROUPS[g]; }
-// Label shown next to slots / in dialogs, e.g. "Blue block".
+// Label shown next to slots / in dialogs, e.g. "8:30–10:20 · teams 1-13 first".
 export function timeFor(event) { const g = groupOf(event); return g === null ? null : BLOCKS[g]; }
 
 // Two events overlap iff both are scheduled and share a rotation group.
@@ -61,7 +62,7 @@ export function allConflicts(state) {
   return out;
 }
 
-// Human label for a conflict: "overlaps Botany (Green block)".
+// Human label for a conflict: "overlaps Botany (10:30–12:20 · teams 14-27 first)".
 export function describeConflict(event, others, teamNumber) {
   const t = timeFor(event, teamNumber);
   return `overlaps ${others.join(' and ')}${t ? ` (${t})` : ' (same time block)'}`;

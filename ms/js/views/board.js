@@ -175,7 +175,7 @@ export function mount(root, ctx) {
         <label class="inline"><input type="checkbox" data-filter="unassigned" ${filters.unassigned ? 'checked' : ''}> no events yet</label>
         ${selBar}
         <span class="grow"></span>
-        <span class="legend small muted" title="Events with the same colour run at the same time — nobody can hold two of them. Build events have no colour and never overlap.">Same colour = same time: ${BLOCK_GROUPS.map(g => `<span class="color-dot" style="background:${g.color}" title="${esc(g.label + ': ' + g.events.join(', '))}"></span>`).join('')}</span>
+        <span class="legend small muted" title="Events with the same colour run at the same time (NYC Regionals schedule) — nobody can hold two of them. Build events have no colour and never overlap.">Same colour = same time: ${BLOCK_GROUPS.map(g => `<span class="color-dot" style="background:${g.color}" title="${esc(g.label + ': ' + g.events.join(', '))}"></span>`).join('')}</span>
         <button class="btn xs ${showSlots ? 'primary' : ''}" type="button" data-toggle-slots aria-pressed="${showSlots}" title="Show event slots under each team">Event slots</button>
       </div>
       <div class="board">${COLS.map(col => renderCol(col, members, stats, settings)).join('')}</div>`;
@@ -221,7 +221,7 @@ export function mount(root, ctx) {
       const badge = meetBadge(list.map(e => byEmail[e]));
       for (let i = list.length; i < ev.slots; i++) chips.push(`<span class="slot empty"><button type="button" data-pick='${esc(JSON.stringify([team, ev.name]))}' aria-label="Assign someone to ${esc(ev.name)} on Team ${team}" title="Pick from Team ${team}">+</button></span>`);
       const full = list.length >= ev.slots;
-      return `<div class="ev-row ${full ? 'full' : ''}" data-team="${team}" data-event="${esc(ev.name)}" title="Drop a card here to assign them ${esc(ev.name)} on Team ${team}"><span class="ev-nm" title="${esc(ev.name + (blockOf(ev.name) ? ' · ' + blockOf(ev.name).label + ' block (' + blockOf(ev.name).events.filter(o => o !== ev.name).join(', ') + ' run at the same time)' : ' · build event, self-scheduled'))}">${blockOf(ev.name) ? `<span class="color-dot" style="background:${blockOf(ev.name).color}"></span>` : ''}${esc(ev.name)}</span><span class="slots">${chips.join('')}${badge}</span></div>`;
+      return `<div class="ev-row ${full ? 'full' : ''}" data-team="${team}" data-event="${esc(ev.name)}" title="Drop a card here to assign them ${esc(ev.name)} on Team ${team}"><span class="ev-nm" title="${esc(ev.name + (blockOf(ev.name) ? ' · ' + blockOf(ev.name).label + ' (' + blockOf(ev.name).events.filter(o => o !== ev.name).join(', ') + ' run at the same time)' : ' · build event, self-scheduled'))}">${blockOf(ev.name) ? `<span class="color-dot" style="background:${blockOf(ev.name).color}"></span>` : ''}${esc(ev.name)}</span><span class="slots">${chips.join('')}${badge}</span></div>`;
     }).join('')).join('');
     return `<div class="col-events"><div class="ev-sec-head">Events <span class="muted">${s.slotsFilled}/${s.slotsTotal} slots · ${s.eventsTouched}/${s.eventsTotal} touched</span></div>${rows}</div>`;
   }
